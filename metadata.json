@@ -1,0 +1,7 @@
+{
+    "name": "HouseSearch",
+    "creator": "Penpen",
+    "description": "Search for houses on Hypixel (/hs help)",
+    "version": "0.0.1",
+    "entry": "index.js"
+}
