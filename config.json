@@ -1,1 +1,6 @@
-{"devmode": false}
+{
+    "devmode": false,
+    "recentHouses": [
+        {}
+    ]
+}

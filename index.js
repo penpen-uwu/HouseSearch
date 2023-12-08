@@ -1,30 +1,115 @@
-devmode = JSON.parse(FileLib.read("HouseSearch", "config.json"))["devmode"];
+config = JSON.parse(FileLib.read("HouseSearch", "config.json"));
+recentHouses = config["recentHouses"];
+devmode = config["devmode"];
+if (recentHouses == undefined) {
+    recentHouses = [];
+}
 
-register("command", (...arg) => {
+function writeConfig(variable, value) {
+    config[variable] = value;
+    FileLib.write("HouseSearch", "config.json", JSON.stringify(config));
+};
+
+timeoutCheck = false;
+timeoutLength = 0;
+
+register("tick", () => {
+    if (timeoutCheck == true) {
+        if (timeoutLength > 60) {
+            ChatLib.chat("Searching for houses timed out. Try again");
+            timeoutCheck = false;
+            timeoutLength = 0;
+        } else {
+            timeoutLength++;
+        }
+    } else {
+        timeoutLength = 0;
+    }
+});
+
+register("command", (...arg) => { ///hs help
     if (arg == undefined || arg == "help" || arg.join(" ").removeFormatting() == "") { //check if the search arguments are empty or help
         ChatLib.chat(ChatLib.getChatBreak("&e&m "));
-        ChatLib.chat("/hs <search>");
-        ChatLib.chat("/hs devmode &7- &fenables developer mode")
+        ChatLib.chat("/hs <search> <page> &7- &fdon't put page for just page 1");
+        ChatLib.chat("/hs devmode &7- &fenables developer mode");
+        ChatLib.chat("/hs recent &7- &fshows recently visited houses");
         ChatLib.chat(ChatLib.getChatBreak("&e&m "));
-    } else if (arg == "devmode") {
+    } else if (arg == "devmode") { ///hs devmode
         devmode = !devmode;
-        FileLib.write("HouseSearch", "config.json", `{"devmode": ${devmode}}`);
-        ChatLib.chat("Toggled showing housing.menu ID/Housing ID")
-    } else {
+        writeConfig("devmode", devmode);
+        ChatLib.chat("Toggled showing housing.menu ID/Housing ID");
+    } else if (arg == "recent") { ///hs recent
+        new Thread(() => { //make new thread so game doesnt lag 
+            ChatLib.chat("Searching for recently visited houses...");
+            timeoutCheck = true;
+            let lines = [ChatLib.getChatBreak("&e&m ")];
+            let iterations = 0;
+            let didntfind = [];
+            recentHouses.forEach((element) => {
+                let house = JSON.parse(FileLib.getUrlContent(`https://housing.menu/house-info?id=${element["id"]}`))["houseInfo"][0];
+                timeoutCheck = false;
+                if (house == undefined) {
+                    didntfind.push(`Didn't find House ${element["name"]}! House might be not public!`);
+                    lines.push(`${element["name"]} &rnot found`);
+                    lines.push("&8&lClick here to join!");
+                    lines.push("");
+                } else {
+                    if (house["alive"]) { //make indicator text for if the house is active (has server or not)
+                        indicator = "&a●&r";
+                    } else {
+                        indicator = "&c●&r";
+                    }
+                    houseinfomsg = new TextComponent(`${house["name"]} ${ChatLib.removeFormatting(element["name"]) == ChatLib.removeFormatting(house["name"]) ? "" : "&f(" + element["name"] + "&f)"}&r, by ${house["creator"]} ${indicator} `).setHover("show_text", `${house["name"]}\n&7Owner: ${house["creator"]}\n\n&7Cookies: &6${house["cookies"].toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}\n\n&7Players: &b${house["players"]}\n\n&7Last Updated: &a${house["last_updated"].replace("T", "-").replace(".000Z", " UTC")}${devmode ? "\n&8" : ""}${devmode ? house["id"] : ""}`);
+                    lines.push(houseinfomsg);
+                    joinmsg = new TextComponent("&e&lClick here to join!").setClick("run_command", `/visit ${house["creator"].removeFormatting().replace(/\[[\w+\+-]+] /, "").trim()} ${house["name_raw"]}`).setHover("show_text", `Click here to run /visit ${house["creator"].removeFormatting().replace(/\[[\w+\+-]+] /, "").trim()} ${house["name_raw"]}`);
+                    lines.push(joinmsg);
+                    lines.push("");
+                }
+                iterations++;
+                if (iterations === recentHouses.length) {
+                    didntfind.forEach((line) => {
+                        ChatLib.chat(line);
+                    });
+                    lines.forEach((line) => {
+                        ChatLib.chat(line);
+                    });
+                }
+            });
+            ChatLib.chat("&7Only showing up to 5 results");
+            ChatLib.chat("&7Hover over House names for more info");
+            ChatLib.chat(ChatLib.getChatBreak("&e&m "));
+        }).start()
+        thread = undefined;
+    } else { ///hs <search> <page>
         thread = new Thread(() => { //make new thread so game doesnt lag 
             ChatLib.chat(`Searching for \"${arg.join(" ").removeFormatting()}\"...`);
-            let houses = JSON.parse(FileLib.getUrlContent(`https://housing.menu/houses?search=${arg.join("+").removeFormatting()}&amount=5&orderby=last_updated`)); //use housing.menu to get json data of houses with the arguments
-            if (houses["total"] == 0) {
+            pageNum = Number(arg[arg.length - 1]);
+            timeoutCheck = true;
+            if (isNaN(pageNum) || arg.length == 1 || pageNum % 1 != 0) {
+                houses = JSON.parse(FileLib.getUrlContent(`https://housing.menu/houses?search=${arg.join("+").removeFormatting()}&amount=250&orderby=last_updated`))["rows"]
+                totalPages = Math.ceil(houses.length / 5);
+                houses = houses.slice(0, 5);
+                pageNum = 1;
+            } else {
+                houses = JSON.parse(FileLib.getUrlContent(`https://housing.menu/houses?search=${arg.slice(0, arg.length - 1).join("+").removeFormatting()}&amount=250&orderby=last_updated`))["rows"];
+                totalPages = Math.ceil(houses.length / 5);
+                houses = houses.slice(((pageNum - 1) * 5), ((pageNum - 1) * 5) + 5)
+            }
+            timeoutCheck = false;
+            if (houses.length == 0) {
                 ChatLib.chat("No houses found")
             } else {
-                ChatLib.chat(ChatLib.getChatBreak("&e&m "));
-                houses["rows"].forEach((element) => {
+
+                let lines = [ChatLib.getChatBreak("&e&m ")];
+                lines.push(ChatLib.getCenteredText(`Results - Page ${pageNum}/${totalPages}`))
+                houses.forEach((element) => {
                     if (element["alive"]) { //make indicator text for if the house is active (has server or not)
                         indicator = "&a●&r";
                     } else {
                         indicator = "&c●&r";
                     }
                     houseinfomsg = new TextComponent(`${element["name"]}&r, by ${element["creator"]} ${indicator}`).setHover("show_text", `${element["name"]}\n&7Owner: ${element["creator"]}\n\n&7Cookies: &6${element["cookies"].toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}\n\n&7Players: &b${element["players"]}\n\n&7Last Updated: &a${element["last_updated"].replace("T", "-").replace(".000Z", " UTC")}${devmode ? "\n&8" : ""}${devmode ? element["id"] : ""}`)
+                    lines.push(houseinfomsg);
                     /* example
                     Blue House, by Penpenpenpenpen
                     (when hovered)
@@ -39,21 +124,55 @@ register("command", (...arg) => {
                     (if devmode)
                     fb4fec3a-273b-4360-a8e0-4423c5055166
                     */
-                    ChatLib.chat(houseinfomsg);
+
                     joinmsg = new TextComponent("&e&lClick here to join!").setClick("run_command", `/visit ${element["creator"].removeFormatting().replace(/\[[\w+\+-]+] /, "").trim()} ${element["name_raw"]}`).setHover("show_text", `Click here to run /visit ${element["creator"].removeFormatting().replace(/\[[\w+\+-]+] /, "").trim()} ${element["name_raw"]}`)
+                    lines.push(joinmsg);
                     /* example
                     Click here to join!
                     (when hovered)
                     Click here to run /visit Penpenpenpenpen Blue House
                     */
-                    ChatLib.chat(joinmsg);
-                    ChatLib.chat("");
+
+                    lines.push("");
                 });
-                ChatLib.chat("&7Only showing up to 5 results");
+                lines.forEach((line) => {
+                    ChatLib.chat(line);
+                });
                 ChatLib.chat("&7Hover over House names for more info");
                 ChatLib.chat(ChatLib.getChatBreak("&e&m "));
             }
             thread = undefined;
         }).start()
     }
-}).setCommandName("hs").setAliases("housesearch", "hsearch").setTabCompletions("help", "devmode");
+}).setCommandName("hs").setAliases("housesearch", "hsearch").setTabCompletions("help", "devmode", "recent");
+
+let onWorldLoad = false;
+
+register("worldLoad", () => {
+    expectWtfmap = false;
+    onWorldLoad = true;
+});
+
+register("tick", () => {
+    if (TabList.getFooter().removeFormatting().includes("You are in ") && onWorldLoad) { // check if player is in housing
+        onWorldLoad = false;
+        ChatLib.command("wtfmap");
+        expectWtfmap = true;
+    }
+});
+
+register("chat", (msg, event) => {
+    if (expectWtfmap && msg.includes("You are currently playing on ")) {
+        expectWtfmap = false;
+        houseId = msg.slice(37, 73);
+        houseName = msg.slice(75, msg.length - 1);
+        recentHouses = recentHouses.filter((house) => house["id"] != houseId);
+        recentHouses.splice(0, 0, {
+            "id": houseId,
+            "name": houseName
+        })
+        recentHouses.splice(5, 1);
+        writeConfig("recentHouses", recentHouses);
+        if (!devmode) { cancel(event); };
+    }
+}).setCriteria("${msg}").setFormatted(true);
