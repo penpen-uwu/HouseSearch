@@ -33,7 +33,7 @@ register("command", (...arg) => { ///hs help
         ChatLib.chat("/hs <search> <page> &7- &fdon't put page for just page 1");
         ChatLib.chat("/hs devmode &7- &fenables developer mode");
         ChatLib.chat("/hs recent <page> &7- &fshows recently visited houses");
-        ChatLib.chat("/hs resetresenthouses &7- &fresets houses in /hs recent");
+        ChatLib.chat("/hs resetrecenthouses &7- &fresets houses in /hs recent");
         ChatLib.chat(ChatLib.getChatBreak("&e&m "));
     } else if (arg == "devmode") { ///hs devmode
         devmode = !devmode;
@@ -97,7 +97,7 @@ register("command", (...arg) => { ///hs help
             ChatLib.chat(ChatLib.getChatBreak("&e&m "));
         }).start()
         thread = undefined;
-    } else if (arg == "resetresenthouses") { ///hs resetresenthouses
+    } else if (arg == "resetrecenthouses") { ///hs resetrecenthouses
         recentHouses = [];
         writeConfig("recentHouses", recentHouses);
         ChatLib.chat("Recent houses reset!");
@@ -169,7 +169,7 @@ register("command", (...arg) => { ///hs help
             thread = undefined;
         }).start()
     }
-}).setCommandName("hs").setAliases("housesearch", "hsearch").setTabCompletions("help", "devmode", "recent", "resetresenthouses");
+}).setCommandName("hs").setAliases("housesearch", "hsearch").setTabCompletions("help", "devmode", "recent", "resetrecenthouses");
 
 let onWorldLoad = false;
 
